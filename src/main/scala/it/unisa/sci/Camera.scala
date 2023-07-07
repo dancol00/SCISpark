@@ -17,7 +17,7 @@ class Camera {
 
   private val imagePaths: ArrayBuffer[Path] = ArrayBuffer[Path]()
   private val imageList: ArrayBuffer[Image] = ArrayBuffer[Image]()
-  private val residualNoiseFiles: ArrayBuffer[Image] = ArrayBuffer[File]()
+  private val residualNoiseFiles: ArrayBuffer[Image] = ArrayBuffer[Image]()
 
   def this(folder: Path) = {
     this()
@@ -64,16 +64,18 @@ class Camera {
     residualNoises
   }
 
+  /*
   def extractReferencePattern(samples: Int = 60): ReferencePattern = {
     var referencePatternUtility: ArrayBuffer[Path] = new ArrayBuffer[Path]()
 
     for(i <- 0 to samples) {
       val randomNumber: Int = scala.util.Random.nextInt(residualNoiseFiles.size)
-      referencePatternUtility +:= residualNoiseFiles(randomNumber).toPath
+      referencePatternUtility += residualNoiseFiles(randomNumber)
       residualNoiseFiles.remove(randomNumber)
     }
     referencePattern = SCIManager.extractReferencePattern(referencePatternUtility.asJava)
 
     referencePattern
   }
+   */
 }

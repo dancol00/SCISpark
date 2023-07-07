@@ -30,7 +30,7 @@ object App {
     hdfsFolder.foreach(f => {
       if (f.isDirectory) {
         val tempCamera = new Camera(f.getPath)
-        tempCamera.getImageList().foreach(image => cameraList += (tempCamera.getCameraName(), image))
+        tempCamera.getImageList().foreach(image => cameraList += ((tempCamera.getCameraName(), image)))
       }
     })
     val cameraRDD = sc.parallelize(cameraList.toSeq)
@@ -44,7 +44,7 @@ object App {
         val rand = Random.nextInt(camera._2.size)
         val rn = noises(rand)
         noises.remove(rand)
-        rnForRP += (camera._1, rn)
+        rnForRP += ((camera._1, rn))
       }
     }
 
