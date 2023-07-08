@@ -57,8 +57,8 @@ object App {
       .map(tuple => (tuple._1, divideNoise(tuple._2, sampleAmount.floatValue())))
 
      */
-    val startRp = new ReferencePattern(SCIManager.extractResidualNoise(rpImageList.head._2))
-    val rpRddComputed = rpRdd.aggregateByKey(startRp)(extractSumAndDivide, sumAndDivide)
+    val rpRddComputed = rpRdd.aggregateByKey(new ReferencePattern()())(extractSum, sumNoise)
+      .map(tuple => (tuple._1, tuple._2.divideByValue(sampleAmount.floatValue())))
 
     val referencePatterns = sc.broadcast(rpRddComputed.collect())
 
@@ -79,6 +79,10 @@ object App {
     correlation.saveAsTextFile(outputPath)
   }
 
+  private def extractSum(rp1: ReferencePattern, image: Image): ReferencePattern = {
+    val rp2 = new ReferencePattern(SCIManager.extractResidualNoise(image))
+    sumNoise(rp1, rp2)
+  }
   private def extractSumAndDivide(rp1: ReferencePattern, image: Image): ReferencePattern = {
     val rp2 = new ReferencePattern(SCIManager.extractResidualNoise(image))
     divideNoise(sumNoise(rp1, rp2), 2)
