@@ -16,17 +16,18 @@ class Camera {
   private var residualNoises = ArrayBuffer[ResidualNoise]()
 
   private val imagePaths: ArrayBuffer[Path] = ArrayBuffer[Path]()
-  private val imageList: ArrayBuffer[Image] = ArrayBuffer[Image]()
+  private val imageList: ArrayBuffer[CustomImage] = ArrayBuffer[CustomImage]()
   private val residualNoiseFiles: ArrayBuffer[Image] = ArrayBuffer[Image]()
 
   def this(folder: Path) = {
     this()
     cameraName = folder.getName
     val fs = FileSystem.get(new Configuration())
-    val imgFolder: Path = new Path(folder, "/img/")
+    val imgFolder: Path = new Path(folder.toString + "/img/")
     val images = fs.listStatus(imgFolder)
     images.foreach(f => {
-      imageList += new Image(fs.open(f.getPath))
+      val path = f.getPath
+      imageList += new CustomImage(fs.open(path), cameraName, path.getName)
     })
   }
 
@@ -38,7 +39,7 @@ class Camera {
     imagePaths
   }
 
-  def getImageList(): ArrayBuffer[Image] = {
+  def getImageList(): ArrayBuffer[CustomImage] = {
     imageList
   }
 

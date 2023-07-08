@@ -18,91 +18,106 @@ object App {
   def main(args: Array[String]): Unit = {
 
     val sampleAmount: Integer = 60
+    val cameraPath: String = "hdfs://masterunisa:9000/user/colucci/Dataset/DatasetSmartphone/Foto"
+    val outputPath: String = "hdfs://masterunisa:9000/user/colucci/output"
 
     val sparkConf = new SparkConf().setAppName("Source Camera Identification")
     val sc = new SparkContext(sparkConf)
     val fs = FileSystem.get(new Configuration())
-    val cameraPath: String = "hdfs://masterunisa:9000/user/colucci/Dataset"
-    val outputPath: String = "hdfs://masterunisa:9000/user/colucci/output"
     val cameraDirectory: Path = new Path(cameraPath)
-    val cameraList: ArrayBuffer[(String, Image)] = new ArrayBuffer[(String, Image)]()
+
+    val rnImageList: ArrayBuffer[(String, CustomImage)] = new ArrayBuffer[(String, CustomImage)]()
+    val rpImageList: ArrayBuffer[(String, CustomImage)] = new ArrayBuffer[(String, CustomImage)]()
+
     val hdfsFolder = fs.listStatus(cameraDirectory)
     hdfsFolder.foreach(f => {
       if (f.isDirectory) {
         val tempCamera = new Camera(f.getPath)
-        tempCamera.getImageList().foreach(image => cameraList += ((tempCamera.getCameraName(), image)))
+        val cameraName = tempCamera.getCameraName()
+        val tempList = tempCamera.getImageList()
+        for(i <- 0 to sampleAmount) {
+          val rand = Random.nextInt(tempList.size)
+          val rpImage = tempList(rand)
+          tempList.remove(rand)
+          rpImageList += ((cameraName, rpImage))
+        }
+        tempList.foreach(image => rnImageList += ((cameraName, image)))
       }
     })
-    val cameraRDD = sc.parallelize(cameraList.toSeq)
+    // TODO: Creare liste dei file, un RDD per fotocamera, estrarre immagini per RP rimuovendo le foto da RDD
+    // TODO: Successivamente creare un unico RDD per RN e suddividere l'estrazione e correlazione ogni x immagini (es. take 50)
+    // TODO: Vedere se fare map(estrai RN).reduceByKey(add) risolve il problema della memoria
+    // TODO: aggregateByKey invece di seconda map a rpRddComputed?
     // TODO: add filenames (requires extending Image class?)
-    val residualNoisesRDD = cameraRDD.map(cameraTuple => (cameraTuple._1, SCIManager.extractResidualNoise(cameraTuple._2)))
-    val residualNoiseGroupedList = residualNoisesRDD.groupByKey.collect.to(ArrayBuffer)
-    val rnForRP = ArrayBuffer[(String, ResidualNoise)]()
-    for(camera <- residualNoiseGroupedList) {
-      val noises = camera._2.to(ArrayBuffer)
-      for(i <- 0 to sampleAmount) {
-        val rand = Random.nextInt(camera._2.size)
-        val rn = noises(rand)
-        noises.remove(rand)
-        rnForRP += ((camera._1, rn))
-      }
-    }
 
-    val tempRdd = sc.parallelize(rnForRP.toSeq)
-    val referencePatternRddAddition = tempRdd.reduceByKey((a,b) => sumNoise(a, b): ResidualNoise)
-    val referencePatternRdd: RDD[(String, ReferencePattern)] = referencePatternRddAddition.map(
-      tuple => (tuple._1, divideNoise(tuple._2, sampleAmount.asInstanceOf[Float]))
-    )
-
-    val compareRdd = residualNoisesRDD.cartesian(referencePatternRdd)
-    // Structure of rdd: Camera name, Residual noise, RP camera name, Reference Pattern
-    // Structure after comparison: Camera name, RP name, correlation
-    val comparison = compareRdd.map(tuples => (tuples._1._1, tuples._2._1, SCIManager.compare(tuples._2._2, tuples._1._2)))
-
-    comparison.saveAsTextFile(outputPath)
-
-
+    val rpRdd = sc.parallelize(rpImageList)
     /*
-    val referencePatternsRDD = cameraRDD.map(camera => (camera, camera.extractReferencePattern()))
+    val rpRddComputed = rpRdd.map(tuple=> (tuple._1, SCIManager.extractResidualNoise(tuple._2)))
+      .reduceByKey((rp1, rp2) => sumNoise(rp1, rp2))
+      .map(tuple => (tuple._1, divideNoise(tuple._2, sampleAmount.floatValue())))
 
-    val residualNoiseFilesBadList: Array[(String, ArrayBuffer[File])] = referencePatternsRDD.map(
-      camera => (camera._1.getCameraName(), camera._1.getResidualNoiseFiles())).collect()
-
-    // flatmap?
-    // val residualNoiseFilesRDD = residualNoisePatternsRDD.map(tuple => (tuple._1, tuple._1.getResidualNoiseFiles()))
-
-    var residualNoiseFilesListUnpacked: ArrayBuffer[(String, File)] = new ArrayBuffer[(String, File)]()
-
-    for(tuple <- residualNoiseFilesBadList) {
-      val cameraName = tuple._1
-      val listInTuple = tuple._2
-      for(file <- listInTuple) {
-        residualNoiseFilesListUnpacked +:= (cameraName, file)
-      }
-    }
-    //residualNoiseFilesBadList.foreach(tuple => tuple._2.foreach(item => residualNoiseFilesListUnpacked += (String, item)))
-
-    val residualNoiseFilesRDD = sc.parallelize(residualNoiseFilesListUnpacked.toSeq)
-
-    val residualNoiseRDD = residualNoiseFilesRDD.map(fileTuple => (fileTuple._1, fileTuple._2.getName, SCIManager.extractResidualNoise(new Image(fileTuple._2))))
-
-    val compareRDD = residualNoiseRDD.cartesian(referencePatternsRDD);
-
-    // Struttura: Nome fotocamera Residual Noise, Nome file Residual Noise, Nome fotocamera Reference Pattern, Indice di correlazione
-    val finalRDD = compareRDD.map(tuple => (tuple._1._1, tuple._1._2, tuple._2._1.getCameraName(), SCIManager.compare(tuple._2._2, tuple._1._3) ))
-
-    finalRDD.saveAsTextFile("...") //TODO: Aggiungere file di output HDFS
      */
+    val startRp = new ReferencePattern(SCIManager.extractResidualNoise(rpImageList.head._2))
+    val rpRddComputed = rpRdd.aggregateByKey(startRp)(extractSumAndDivide, sumAndDivide)
+
+    val referencePatterns = sc.broadcast(rpRddComputed.collect())
+
+    val rnRdd = sc.parallelize(rnImageList)
+    val correlation = rnRdd.flatMap(rnTuple => {
+      val correlationList = new ArrayBuffer[(String, String, String, Double)]()
+      referencePatterns.value.foreach(tuple => {
+        correlationList += ((rnTuple._1,
+          rnTuple._2.getFileName,
+          tuple._1,
+          SCIManager.compare(tuple._2,
+          SCIManager.extractResidualNoise(rnTuple._2))
+        ))
+      })
+      correlationList
+    })
+
+    correlation.saveAsTextFile(outputPath)
   }
 
-  private def sumNoise(rn1: ResidualNoise, rn2: ResidualNoise): ResidualNoise = {
+  private def extractSumAndDivide(rp1: ReferencePattern, image: Image): ReferencePattern = {
+    val rp2 = new ReferencePattern(SCIManager.extractResidualNoise(image))
+    divideNoise(sumNoise(rp1, rp2), 2)
+  }
+
+  private def extractSumAndDivide(image1: Image, image2: Image): ReferencePattern = {
+    divideNoise(sumNoise(
+      SCIManager.extractResidualNoise(image1),
+      SCIManager.extractResidualNoise(image2)
+    ), 2)
+  }
+  private def sumAndDivide(rn1: ReferencePattern, rn2: ReferencePattern): ReferencePattern = {
+    divideNoise(sumNoise(rn1, rn2), 2)
+  }
+
+  private def sumNoise(rn1: ReferencePattern, rn2: ReferencePattern): ReferencePattern = {
     rn1.add(rn2)
     rn1
+  }
+  private def sumNoise(rn1: ResidualNoise, rn2: ResidualNoise): ReferencePattern = {
+    rn1.add(rn2)
+    val rp: ReferencePattern = new ReferencePattern(rn1)
+    rp
   }
   private def divideNoise(residualNoise: ResidualNoise, value: Float): ReferencePattern = {
     residualNoise.divideByValue(value)
     val rp: ReferencePattern = new ReferencePattern(residualNoise)
     rp
+  }
+
+  private def divideNoise(rp: ReferencePattern, value: Float): ReferencePattern = {
+    rp.divideByValue(value)
+    rp
+  }
+
+  private def compareToList(residualNoise: ResidualNoise, referencePatterns: Array[(String, ReferencePattern)]): List[(String, Double)] = {
+    val compareList = new ArrayBuffer[(String, Double)]
+    referencePatterns.foreach(rp => compareList += ((rp._1, SCIManager.compare(rp._2, residualNoise))))
+    compareList.toList
   }
 
 }
