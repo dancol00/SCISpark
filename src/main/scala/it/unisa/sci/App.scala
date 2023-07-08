@@ -26,22 +26,26 @@ object App {
     val fs = FileSystem.get(new Configuration())
     val cameraDirectory: Path = new Path(cameraPath)
 
-    val rnImageList: ArrayBuffer[(String, CustomImage)] = new ArrayBuffer[(String, CustomImage)]()
-    val rpImageList: ArrayBuffer[(String, CustomImage)] = new ArrayBuffer[(String, CustomImage)]()
+    //val imageList = new ArrayBuffer[(String, String, Path)]()
+    val rnImageList: ArrayBuffer[(String, String, Path)] = new ArrayBuffer[(String, String, Path)]()
+    val rpImageList: ArrayBuffer[(String, Path)] = new ArrayBuffer[(String, Path)]()
 
     val hdfsFolder = fs.listStatus(cameraDirectory)
     hdfsFolder.foreach(f => {
       if (f.isDirectory) {
-        val tempCamera = new Camera(f.getPath)
-        val cameraName = tempCamera.getCameraName()
-        val tempList = tempCamera.getImageList()
-        for(i <- 0 to sampleAmount) {
-          val rand = Random.nextInt(tempList.size)
-          val rpImage = tempList(rand)
-          tempList.remove(rand)
-          rpImageList += ((cameraName, rpImage))
+        val cameraName = f.getPath.getName
+        val images = fs.listStatus(new Path(f.getPath, "img"))
+        images.foreach(image => {
+          val path = image.getPath
+          rnImageList += ((cameraName, path.getName, path))
+        })
+
+        for (i <- 0 to sampleAmount) {
+          val rand = Random.nextInt(rnImageList.size)
+          val rpImage = rnImageList(rand)
+          rnImageList.remove(rand)
+          rpImageList += ((rpImage._1, rpImage._3)) // Filename is not needed for Reference Pattern
         }
-        tempList.foreach(image => rnImageList += ((cameraName, image)))
       }
     })
     // TODO: Creare liste dei file, un RDD per fotocamera, estrarre immagini per RP rimuovendo le foto da RDD
@@ -62,6 +66,7 @@ object App {
       .map(tuple => (tuple._1, divideNoise(tuple._2, sampleAmount.floatValue())))
 
     println("\n\n///// EXTRACTED REFERENCE PATTERNS /////\n\n")
+
     val referencePatterns = sc.broadcast(rpRddComputed.collect())
 
     println("\n\n///// BROADCASTED REFERENCE PATTERNS /////\n\n")
@@ -70,11 +75,12 @@ object App {
     val correlation = rnRdd.flatMap(rnTuple => {
       val correlationList = new ArrayBuffer[(String, String, String, Double)]()
       referencePatterns.value.foreach(tuple => {
-        correlationList += ((rnTuple._1,
-          rnTuple._2.getFileName,
-          tuple._1,
-          SCIManager.compare(tuple._2,
-          SCIManager.extractResidualNoise(rnTuple._2))
+        val image = new Image(fs.open(rnTuple._3))
+        correlationList += ((
+          rnTuple._1, // Camera name
+          rnTuple._2, // File name
+          tuple._1,   // Reference Pattern Camera name
+          SCIManager.compare(tuple._2, SCIManager.extractResidualNoise(image)) // Correlation
         ))
       })
       correlationList
@@ -83,7 +89,9 @@ object App {
     correlation.saveAsTextFile(outputPath)
   }
 
-  private def extractSum(rp1: ReferencePattern, image: Image): ReferencePattern = {
+  private def extractSum(rp1: ReferencePattern, path: Path): ReferencePattern = {
+    val fs = FileSystem.get(new Configuration())
+    val image = new Image(fs.open(path))
     val rp2 = new ReferencePattern(SCIManager.extractResidualNoise(image))
     sumNoise(rp1, rp2)
   }
