@@ -1,5 +1,7 @@
 package it.unisa.di.dif.pattern;
 
+import java.io.Serializable;
+
 /**
  * Marker abstract class used to identify all the noise types (i.e. Reference Pattern and Residual Noise)
  *
@@ -8,7 +10,7 @@ package it.unisa.di.dif.pattern;
  * @author Andrea Bruno
 * @author Paola Capasso
  */
-public abstract class NoisePattern extends GenericPattern {
+public abstract class NoisePattern extends GenericPattern implements Serializable {
     /**
      * Default constructor
      */
