@@ -60,7 +60,10 @@ object App {
     val rpRddComputed = rpRdd.aggregateByKey(new ReferencePattern()())(extractSum, sumNoise)
       .map(tuple => (tuple._1, tuple._2.divideByValue(sampleAmount.floatValue())))
 
+    println("\n\n///// EXTRACTED REFERENCE PATTERNS /////\n\n")
     val referencePatterns = sc.broadcast(rpRddComputed.collect())
+
+    println("\n\n///// BROADCASTED REFERENCE PATTERNS /////\n\n")
 
     val rnRdd = sc.parallelize(rnImageList)
     val correlation = rnRdd.flatMap(rnTuple => {
