@@ -57,7 +57,8 @@ object App {
       .map(tuple => (tuple._1, divideNoise(tuple._2, sampleAmount.floatValue())))
 
      */
-    val rpRddComputed: RDD[(String, ReferencePattern)] = rpRdd.aggregateByKey(new ReferencePattern()())(extractSum, sumNoise)
+    val startRP = new ReferencePattern()
+    val rpRddComputed = rpRdd.aggregateByKey(startRP)(extractSum, sumNoise)
       .map(tuple => (tuple._1, divideNoise(tuple._2, sampleAmount.floatValue())))
 
     println("\n\n///// EXTRACTED REFERENCE PATTERNS /////\n\n")
