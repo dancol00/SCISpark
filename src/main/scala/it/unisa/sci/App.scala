@@ -26,7 +26,6 @@ object App {
     val fs = FileSystem.get(new Configuration())
     val cameraDirectory: Path = new Path(cameraPath)
 
-    //val imageList = new ArrayBuffer[(String, String, Path)]()
     val rnImageList: ArrayBuffer[(String, String, Path)] = new ArrayBuffer[(String, String, Path)]()
     val rpImageList: ArrayBuffer[(String, Path)] = new ArrayBuffer[(String, Path)]()
 
@@ -49,12 +48,6 @@ object App {
       }
     })
 
-    // TODO: Creare liste dei file, un RDD per fotocamera, estrarre immagini per RP rimuovendo le foto da RDD
-    // TODO: Successivamente creare un unico RDD per RN e suddividere l'estrazione e correlazione ogni x immagini (es. take 50)
-    // TODO: Vedere se fare map(estrai RN).reduceByKey(add) risolve il problema della memoria
-    // TODO: aggregateByKey invece di seconda map a rpRddComputed?
-    // TODO: add filenames (requires extending Image class?)
-
     /*
     val rpRddComputed = rpRdd.map(tuple=> (tuple._1, SCIManager.extractResidualNoise(tuple._2)))
       .reduceByKey((rp1, rp2) => sumNoise(rp1, rp2))
@@ -68,19 +61,20 @@ object App {
       .map(tuple => (tuple._1, divideNoise(tuple._2, sampleAmount.floatValue())))
 
 
-    //val referencePatterns = sc.broadcast(rpRddComputed.collect())
-    val referencePatterns = rpRddComputed.collect()
+    val referencePatterns = sc.broadcast(rpRddComputed.collect())
+    //val referencePatterns = rpRddComputed.collect()
 
     val rnRdd = sc.parallelize(rnImageList)
     val correlation = rnRdd.flatMap(rnTuple => {
       val correlationList = new ArrayBuffer[(String, String, String, Double)]()
+      val image = new Image(fs.open(rnTuple._3))
+      val rn = SCIManager.extractResidualNoise(image)
       referencePatterns.foreach(tuple => {
-        val image = new Image(fs.open(rnTuple._3))
         correlationList += ((
           rnTuple._1, // Camera name
           rnTuple._2, // File name
           tuple._1,   // Reference Pattern Camera name
-          SCIManager.compare(tuple._2, SCIManager.extractResidualNoise(image)) // Correlation
+          SCIManager.compare(tuple._2, rn)) // Correlation
         ))
       })
       correlationList
