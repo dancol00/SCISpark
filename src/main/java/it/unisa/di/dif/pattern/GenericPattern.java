@@ -15,7 +15,7 @@ import java.nio.file.Paths;
  * @author Andrea Bruno
 * @author Paola Capasso
  */
-public abstract class GenericPattern implements Pattern {
+public abstract class GenericPattern implements Pattern, Serializable {
     private ColorChannel red;
     private ColorChannel green;
     private ColorChannel blue;

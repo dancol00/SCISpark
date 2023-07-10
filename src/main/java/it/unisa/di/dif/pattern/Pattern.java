@@ -1,6 +1,7 @@
 package it.unisa.di.dif.pattern;
 
 import java.io.File;
+import java.io.Serializable;
 import java.nio.file.Path;
 
 /**

@@ -48,30 +48,33 @@ object App {
         }
       }
     })
+
     // TODO: Creare liste dei file, un RDD per fotocamera, estrarre immagini per RP rimuovendo le foto da RDD
     // TODO: Successivamente creare un unico RDD per RN e suddividere l'estrazione e correlazione ogni x immagini (es. take 50)
     // TODO: Vedere se fare map(estrai RN).reduceByKey(add) risolve il problema della memoria
     // TODO: aggregateByKey invece di seconda map a rpRddComputed?
     // TODO: add filenames (requires extending Image class?)
 
-    val rpRdd = sc.parallelize(rpImageList)
     /*
     val rpRddComputed = rpRdd.map(tuple=> (tuple._1, SCIManager.extractResidualNoise(tuple._2)))
       .reduceByKey((rp1, rp2) => sumNoise(rp1, rp2))
       .map(tuple => (tuple._1, divideNoise(tuple._2, sampleAmount.floatValue())))
 
      */
-    val startRP = new ReferencePattern(3024, 4032)
-    val rpRddComputed = rpRdd.aggregateByKey(startRP)(extractSum, sumNoise)
+    val temp = new Image(fs.open(rpImageList(1)._2))
+
+    val rpRdd = sc.parallelize(rpImageList)
+    val rpRddComputed = rpRdd.aggregateByKey(getNullPattern(temp))(extractSum, sumNoise)
       .map(tuple => (tuple._1, divideNoise(tuple._2, sampleAmount.floatValue())))
 
 
-    val referencePatterns = sc.broadcast(rpRddComputed.collect())
+    //val referencePatterns = sc.broadcast(rpRddComputed.collect())
+    val referencePatterns = rpRddComputed.collect()
 
     val rnRdd = sc.parallelize(rnImageList)
     val correlation = rnRdd.flatMap(rnTuple => {
       val correlationList = new ArrayBuffer[(String, String, String, Double)]()
-      referencePatterns.value.foreach(tuple => {
+      referencePatterns.foreach(tuple => {
         val image = new Image(fs.open(rnTuple._3))
         correlationList += ((
           rnTuple._1, // Camera name
@@ -84,6 +87,16 @@ object App {
     })
 
     correlation.saveAsTextFile(outputPath)
+  }
+
+  private def getNullPattern(image: Image): ReferencePattern = {
+    val rp = new ReferencePattern(image.getHeight, image.getWidth)
+    rp
+  }
+
+  private def extractSum(rp1: ReferencePattern, image: Image): ReferencePattern = {
+    val rp2 = new ReferencePattern(SCIManager.extractResidualNoise(image))
+    sumNoise(rp1, rp2)
   }
 
   private def extractSum(rp1: ReferencePattern, path: Path): ReferencePattern = {

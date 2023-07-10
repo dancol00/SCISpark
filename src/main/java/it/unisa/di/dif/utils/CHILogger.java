@@ -10,11 +10,12 @@ import org.apache.logging.log4j.core.config.builder.api.*;
 import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 
 import java.io.File;
+import java.io.Serializable;
 
 /**
  * The CHILogger class is a singleton class that creates a logger object that writes to a log file
  */
-public class CHILogger {
+public class CHILogger implements Serializable {
     public Logger log;
     public final String TIME_STAT= "<<RT>>";
     public Constant constant = Constant.getInstance();

@@ -10,7 +10,7 @@ import java.io.Serializable;
  * @author Andrea Bruno
 * @author Paola Capasso
  */
-public abstract class NoisePattern extends GenericPattern implements Serializable {
+public abstract class NoisePattern extends GenericPattern {
     /**
      * Default constructor
      */

@@ -3,6 +3,7 @@ package it.unisa.di.dif.pattern;
 import it.unisa.di.dif.utils.Constant;
 
 import java.io.PrintStream;
+import java.io.Serializable;
 import java.util.Scanner;
 
 /**
@@ -12,7 +13,7 @@ import java.util.Scanner;
  * @author Andrea Bruno
 * @author Paola Capasso
  */
-public class ColorChannel {
+public class ColorChannel implements Serializable {
     public static final Color RED = Color.RED;
     public static final Color GREEN = Color.GREEN;
     public static final Color BLUE = Color.BLUE;

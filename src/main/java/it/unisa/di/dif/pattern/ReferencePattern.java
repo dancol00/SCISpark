@@ -13,8 +13,14 @@ import java.security.SecureRandom;
 * @author Paola Capasso
  */
 public class ReferencePattern extends NoisePattern{
+
+    public int height;
+    public int width;
+
     public ReferencePattern() {
         super();
+        height = 0;
+        width = 0;
     }
 
     /**
@@ -24,9 +30,22 @@ public class ReferencePattern extends NoisePattern{
      */
     public ReferencePattern(ResidualNoise rn) {
         super();
+        height = rn.getHeight();
+        width = rn.getWidth();
         this.setRedChannel(rn.getRedChannel());
         this.setGreenChannel(rn.getGreenChannel());
         this.setBlueChannel(rn.getBlueChannel());
+    }
+
+
+    @Override
+    public int getHeight() {
+        return height;
+    }
+
+    @Override
+    public int getWidth() {
+        return width;
     }
 
     /**
@@ -37,6 +56,8 @@ public class ReferencePattern extends NoisePattern{
      */
     public ReferencePattern(int height, int width) {
         super(height, width);
+        this.height = height;
+        this.width = width;
     }
 
     /**
