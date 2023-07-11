@@ -21,7 +21,9 @@ object App {
     val cameraPath: String = "hdfs://masterunisa:9000/user/colucci/Dataset/DatasetSmartphone/Foto"
     val outputPath: String = "hdfs://masterunisa:9000/user/colucci/output"
 
-    val sparkConf = new SparkConf().setAppName("Source Camera Identification")
+    val sparkConf = new SparkConf()
+      .setAppName("Source Camera Identification")
+      .set("spark.driver.maxResultSize", "4g")
     val sc = new SparkContext(sparkConf)
     val fs = FileSystem.get(new Configuration())
     val cameraDirectory: Path = new Path(cameraPath)
@@ -69,12 +71,12 @@ object App {
       val correlationList = new ArrayBuffer[(String, String, String, Double)]()
       val image = new Image(fs.open(rnTuple._3))
       val rn = SCIManager.extractResidualNoise(image)
-      referencePatterns.foreach(tuple => {
+      referencePatterns.value.foreach(tuple => {
         correlationList += ((
           rnTuple._1, // Camera name
           rnTuple._2, // File name
           tuple._1,   // Reference Pattern Camera name
-          SCIManager.compare(tuple._2, rn)) // Correlation
+          SCIManager.compare(tuple._2, rn) // Correlation
         ))
       })
       correlationList
