@@ -9,6 +9,7 @@ import org.apache.hadoop.fs.FileSystem
 import scala.collection.mutable.ArrayBuffer
 import org.apache.spark.{SparkConf, SparkContext}
 import org.apache.hadoop.fs.Path
+import org.apache.spark.broadcast.Broadcast
 
 import scala.util.Random
 
@@ -67,20 +68,7 @@ object App {
     //val referencePatterns = rpRddComputed.collect()
 
     val rnRdd = sc.parallelize(rnImageList)
-    val correlation = rnRdd.flatMap(rnTuple => {
-      val correlationList = new ArrayBuffer[(String, String, String, Double)]()
-      val image = new Image(fs.open(rnTuple._3))
-      val rn = SCIManager.extractResidualNoise(image)
-      referencePatterns.value.foreach(tuple => {
-        correlationList += ((
-          rnTuple._1, // Camera name
-          rnTuple._2, // File name
-          tuple._1,   // Reference Pattern Camera name
-          SCIManager.compare(tuple._2, rn) // Correlation
-        ))
-      })
-      correlationList
-    })
+    val correlation = rnRdd.flatMap(rnTuple => { extractAndCompare(rnTuple, referencePatterns.value) })
 
     correlation.saveAsTextFile(outputPath)
   }
@@ -90,56 +78,36 @@ object App {
     rp
   }
 
-  private def extractSum(rp1: ReferencePattern, image: Image): ReferencePattern = {
-    val rp2 = new ReferencePattern(SCIManager.extractResidualNoise(image))
-    sumNoise(rp1, rp2)
-  }
-
   private def extractSum(rp1: ReferencePattern, path: Path): ReferencePattern = {
     val fs = FileSystem.get(new Configuration())
     val image = new Image(fs.open(path))
     val rp2 = new ReferencePattern(SCIManager.extractResidualNoise(image))
     sumNoise(rp1, rp2)
   }
-  private def extractSumAndDivide(rp1: ReferencePattern, image: Image): ReferencePattern = {
-    val rp2 = new ReferencePattern(SCIManager.extractResidualNoise(image))
-    divideNoise(sumNoise(rp1, rp2), 2)
-  }
-
-  private def extractSumAndDivide(image1: Image, image2: Image): ReferencePattern = {
-    divideNoise(sumNoise(
-      SCIManager.extractResidualNoise(image1),
-      SCIManager.extractResidualNoise(image2)
-    ), 2)
-  }
-  private def sumAndDivide(rn1: ReferencePattern, rn2: ReferencePattern): ReferencePattern = {
-    divideNoise(sumNoise(rn1, rn2), 2)
-  }
 
   private def sumNoise(rn1: ReferencePattern, rn2: ReferencePattern): ReferencePattern = {
     rn1.add(rn2)
     rn1
   }
-  private def sumNoise(rn1: ResidualNoise, rn2: ResidualNoise): ReferencePattern = {
-    rn1.add(rn2)
-    val rp: ReferencePattern = new ReferencePattern(rn1)
-    rp
-  }
-  private def divideNoise(residualNoise: ResidualNoise, value: Float): ReferencePattern = {
-    residualNoise.divideByValue(value)
-    val rp: ReferencePattern = new ReferencePattern(residualNoise)
-    rp
-  }
-
   private def divideNoise(rp: ReferencePattern, value: Float): ReferencePattern = {
     rp.divideByValue(value)
     rp
   }
 
-  private def compareToList(residualNoise: ResidualNoise, referencePatterns: Array[(String, ReferencePattern)]): List[(String, Double)] = {
-    val compareList = new ArrayBuffer[(String, Double)]
-    referencePatterns.foreach(rp => compareList += ((rp._1, SCIManager.compare(rp._2, residualNoise))))
-    compareList.toList
+  private def extractAndCompare(rnTuple: (String, String, Path), referencePatterns: Array[(String, ReferencePattern)]): ArrayBuffer[(String, String, String, Double)] = {
+    val correlationList = new ArrayBuffer[(String, String, String, Double)]()
+    val fs = FileSystem.get(new Configuration())
+    val image = new Image(fs.open(rnTuple._3))
+    val rn = SCIManager.extractResidualNoise(image)
+    referencePatterns.foreach(tuple => {
+      correlationList += ((
+        rnTuple._1, // Camera name
+        rnTuple._2, // File name
+        tuple._1, // Reference Pattern Camera name
+        SCIManager.compare(tuple._2, rn) // Correlation
+      ))
+    })
+    correlationList
   }
 
 }
